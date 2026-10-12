@@ -238,7 +238,7 @@ function speak(t){
     const u=new SpeechSynthesisUtterance(t);u.lang="ja-JP";u.rate=.9;u.volume=1;if(jaVoice)u.voice=jaVoice;
     let started=false;u.onstart=()=>{started=true};
     u.onerror=e=>{if(e.error!=="interrupted"&&e.error!=="canceled")setSync("Audio was blocked here ("+e.error+"). Try opening the page in your phone or computer browser.")};
-    speechSynthesis.cancel();speechSynthesis.resume();speechSynthesis.speak(u);
+    if(speechSynthesis.speaking||speechSynthesis.pending)speechSynthesis.cancel();speechSynthesis.speak(u);
     setTimeout(()=>{if(!started&&!speechSynthesis.speaking)setSync("Audio did not start. This view may not allow speech; try opening the page in a browser, and check the device is not on silent.")},2500);
   }catch(e){setSync("Audio is not available in this view.")}
 }
