@@ -235,7 +235,7 @@ player.addEventListener("error",()=>{if(cur!=null)tts(card(cur)[1]||card(cur)[0]
 function speak(t){
   if(cur==null)return;
   if(cur>=CUSTOM){tts(t);return}
-  player.src="a/"+cur+".mp3";
+  player.pause();player.src="a/"+cur+".mp3";player.load();
   const p=player.play();if(p&&p.catch)p.catch(e=>{if(e&&e.name==="NotAllowedError")setSync("Tap Play audio to hear the word.")});
 }
 const canSpeak=true;
