@@ -1,28 +1,28 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#2c4a8c"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#5f7a5f"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg">
 <style>body{margin:0}[hidden]{display:none!important}:root{padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}</style>
 <title>Kotoba Deck</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Shippori+Mincho:wght@500;700&display=swap">
 <style>
 /* Layout: one-screen study app. Slim top bar with tabs, one large card in the middle, answer row pinned under it. */
 :root{
-  --bg:#eef1f6; --surface:#ffffff; --ink:#172033; --muted:#5d6880; --line:#d5dbe6;
-  --accent:#2c4a8c; --accent-ink:#ffffff; --seal:#b3352b;
-  --again:#b3352b; --hard:#9a6a08; --good:#23774a; --easy:#2c4a8c;
-  --new:#2c64c4; --learn:#b3352b; --rev:#23774a;
+  --bg:#f4f1ea; --surface:#fbf9f4; --ink:#2b2a26; --muted:#77736a; --line:#dcd5c7;
+  --accent:#5f7a5f; --accent-ink:#fbf9f4; --seal:#a8473a;
+  --again:#a8473a; --hard:#9a7420; --good:#4f7a4f; --easy:#4d6f86;
+  --new:#4d6f86; --learn:#a8473a; --rev:#4f7a4f;
   --display:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
   --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#10141d; --surface:#1a2130; --ink:#e8ecf5; --muted:#98a3ba; --line:#2d3649;
-  --accent:#8fb0f2; --accent-ink:#0e1420; --seal:#e8695d;
-  --again:#f08277; --hard:#e0b04a; --good:#62c690; --easy:#8fb0f2;
-  --new:#7fa8f5; --learn:#f08277; --rev:#62c690; color-scheme:dark}}
+  --bg:#1b1d1a; --surface:#22251f; --ink:#e9e4d8; --muted:#9c978b; --line:#30342d;
+  --accent:#9cb894; --accent-ink:#1b1d1a; --seal:#d98a7c;
+  --again:#e09584; --hard:#d6b066; --good:#9cc490; --easy:#93b6cc;
+  --new:#93b6cc; --learn:#e09584; --rev:#9cc490; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#10141d; --surface:#1a2130; --ink:#e8ecf5; --muted:#98a3ba; --line:#2d3649;
-  --accent:#8fb0f2; --accent-ink:#0e1420; --seal:#e8695d;
-  --again:#f08277; --hard:#e0b04a; --good:#62c690; --easy:#8fb0f2;
-  --new:#7fa8f5; --learn:#f08277; --rev:#62c690; color-scheme:dark}
+  --bg:#1b1d1a; --surface:#22251f; --ink:#e9e4d8; --muted:#9c978b; --line:#30342d;
+  --accent:#9cb894; --accent-ink:#1b1d1a; --seal:#d98a7c;
+  --again:#e09584; --hard:#d6b066; --good:#9cc490; --easy:#93b6cc;
+  --new:#93b6cc; --learn:#e09584; --rev:#9cc490; color-scheme:dark}
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
 *{box-sizing:border-box}
@@ -336,6 +336,7 @@ document.addEventListener("keydown",e=>{
   else if(shown&&e.key===" "){e.preventDefault();answer(3)}
   else if(e.key==="z")doUndo();
 });
+try{if(window.top!==window)document.querySelector(".brand").hidden=true}catch(e){}
 rebuild();rollDay();render();load();
 if("serviceWorker"in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
