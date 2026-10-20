@@ -47,6 +47,10 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;overflow:au
 .romaji{color:var(--muted);font-size:17px;letter-spacing:.03em}
 .rule{width:56px;height:1px;background:var(--line);margin:6px 0}
 .meaning{font-size:21px;font-weight:500;max-width:30ch;text-wrap:balance}
+.ex{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:4px;max-width:34ch}
+.exja{font-family:var(--display);font-size:20px;line-height:1.4}
+.exro{color:var(--muted);font-size:14px}
+.exen{font-size:15px;margin-bottom:6px}
 .say{background:none;border:1px solid var(--line);border-radius:999px;padding:4px 12px;color:var(--muted);font-size:13px}
 .answers{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .answers button{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:600}
@@ -128,7 +132,7 @@ function romaji(k){
 }
 
 /* ---------- state ---------- */
-const S={cards:{},meta:{v:1,set:{nd:30,rom:true,auto:false},day:{d:0,nw:0,extra:0,rev:0},hist:{},custom:[]}};
+const S={cards:{},meta:{v:1,set:{nd:30,rom:true,auto:false,voice:"device"},day:{d:0,nw:0,extra:0,rev:0},hist:{},custom:[]}};
 let IDS=[],tab="study",cur=null,shown=false,undo=null,base=null,syncMsg="",q="",resetArm=false;
 const card=i=>i<CUSTOM?DECK[i]:[...S.meta.custom[i-CUSTOM],0];
 function rebuild(){IDS=DECK.map((_,i)=>i).concat(S.meta.custom.map((_,i)=>CUSTOM+i))}
@@ -156,7 +160,7 @@ async function flush(){
   busy=false;
 }
 function setSync(m){syncMsg=m;$("#sync").textContent=m}
-function adopt(o){if(!o)return false;if(o.meta){Object.assign(S.meta,o.meta);S.meta.set=Object.assign({nd:30,rom:true,auto:false},o.meta.set)}if(o.cards)S.cards=o.cards;return true}
+function adopt(o){if(!o)return false;if(o.meta){Object.assign(S.meta,o.meta);S.meta.set=Object.assign({nd:30,rom:true,auto:false,voice:"device"},o.meta.set)}if(o.cards)S.cards=o.cards;return true}
 async function load(){
   let local=null;try{local=JSON.parse(localStorage.getItem("kotoba")||"null")}catch(e){}
   let ok=false;
@@ -230,14 +234,31 @@ function doUndo(){
   S.meta.day=day;S.meta.hist[day.d]=h;undo=null;cur=i;shown=false;mark(i);render();
 }
 const player=new Audio();player.preload="auto";
-function tts(t){try{const u=new SpeechSynthesisUtterance(t);u.lang="ja-JP";u.rate=.9;speechSynthesis.speak(u)}catch(e){}}
-player.addEventListener("error",()=>{if(cur!=null)tts(card(cur)[1]||card(cur)[0])});
-function speak(t){
-  if(cur==null)return;
-  if(cur>=CUSTOM){tts(t);return}
-  player.pause();player.src="a/"+cur+".mp3";player.load();
-  const p=player.play();if(p&&p.catch)p.catch(e=>{if(e&&e.name==="NotAllowedError")setSync("Tap Play audio to hear the word.")});
+/* Voice: the phone's own Japanese voice (Siri/Kyoko quality) by default; the recorded
+   clip is the fallback when the phone voice does not start, and the "Recorded" setting. */
+let jaVoice=null;
+function pickVoice(){try{const v=speechSynthesis.getVoices().filter(x=>/^ja/i.test(x.lang));
+  const score=x=>(/siri/i.test(x.name)?40:0)+(/premium|enhanced|拡張|プレミアム/i.test(x.name)?30:0)+(/o-ren|otoya|hattori|kyoko/i.test(x.name)?10:0)+(x.localService?2:0);
+  v.sort((a,b)=>score(b)-score(a));jaVoice=v[0]||null}catch(e){}}
+try{pickVoice();speechSynthesis.addEventListener("voiceschanged",pickVoice)}catch(e){}
+function playClip(i){if(i==null||i>=CUSTOM)return false;player.pause();player.src="a/"+i+".mp3";player.load();
+  const p=player.play();if(p&&p.catch)p.catch(e=>{if(e&&e.name==="NotAllowedError")setSync("Tap Play audio to hear the word.")});return true}
+function sayJa(text,clipIdx){
+  const useDevice=S.meta.set.voice!=="rec"&&"speechSynthesis"in window;
+  if(!useDevice){if(!playClip(clipIdx))setSync("No recording for this one. Switch Voice to iPhone voice in Settings.");return}
+  try{
+    pickVoice();player.pause();
+    if(speechSynthesis.speaking||speechSynthesis.pending)speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text);u.lang="ja-JP";u.rate=.9;if(jaVoice)u.voice=jaVoice;
+    let started=false;u.onstart=()=>{started=true};
+    speechSynthesis.speak(u);
+    setTimeout(()=>{if(!started&&!speechSynthesis.speaking){if(!playClip(clipIdx))setSync("The phone voice did not start. Check the silent switch.")}},1500);
+  }catch(e){playClip(clipIdx)}
 }
+function speak(t){if(cur==null)return;sayJa(card(cur)[1]||card(cur)[0],cur)}
+let EX=null;fetch("examples.json").then(r=>r.json()).then(d=>{EX=d;if(shown)render()}).catch(()=>{});
+function exOf(i){return i<CUSTOM&&EX?EX[i]:null}
+function exRomaji(k){const t=k.split(" ").map(w=>w==="、"?",":romaji(w));let o=t.join(" ").replace(/ ,/g,",").replace(/,$/,"").trim();return o?o.charAt(0).toUpperCase()+o.slice(1)+".":""}
 const canSpeak=true;
 
 /* ---------- views ---------- */
@@ -252,7 +273,7 @@ function vStudy(){
   const seal=`<div class="seal">${lv?"N"+lv:"Mine"}</div>`;
   if(!shown)return counts+`<div class="card">${seal}<div class="word" lang="ja">${esc(e)}</div>${S.meta.set.rom?`<div class="romaji">${esc(ro)}</div>`:""}</div><button class="primary" data-a="show">Show answer</button>`;
   const b=[1,2,3,4].map(g=>`<button class="a${g}" data-g="${g}">${["Again","Hard","Good","Easy"][g-1]}<small>${label(sched(c,g,now,false),now)}</small></button>`).join("");
-  return counts+`<div class="card">${seal}<div class="word" lang="ja">${esc(e)}</div>${e!==k?`<div class="kana" lang="ja">${esc(k)}</div>`:""}<div class="romaji">${esc(ro)}</div><div class="rule"></div><div class="meaning">${esc(m)}</div>${canSpeak?`<button class="say" data-a="say">Play audio</button>`:""}</div><div class="answers">${b}</div>`;
+  return counts+`<div class="card">${seal}<div class="word" lang="ja">${esc(e)}</div>${e!==k?`<div class="kana" lang="ja">${esc(k)}</div>`:""}<div class="romaji">${esc(ro)}</div><div class="rule"></div><div class="meaning">${esc(m)}</div>${canSpeak?`<button class="say" data-a="say">Play word</button>`:""}${(x=>x?`<div class="ex"><div class="exja" lang="ja">${esc(x[0])}</div>${x[2]?`<div class="exro">${esc(exRomaji(x[2]))}</div>`:""}<div class="exen">${esc(x[1])}</div><button class="say" data-a="sayex">Play sentence</button></div>`:"")(exOf(cur))}</div><div class="answers">${b}</div>`;
 }
 function statusOf(i,today){const c=S.cards[i];if(!c)return"New";if(c[0]!==2)return"Learning";const d=c[1]-today;return d<=0?"Due":"In "+(d<30?d+"d":d<365?(d/30).toFixed(1)+"mo":(d/365).toFixed(1)+"y")}
 function vDeck(){
@@ -282,7 +303,8 @@ function vSettings(){
   return`<div class="panel"><h2>Study</h2>
   <div class="row"><div><b>New cards per day</b><p>Raise it to move fast while the words are easy. Reviews are never capped.</p></div><input type="number" id="nd" min="0" max="500" value="${s.nd}"></div>
   <div class="row"><div><b>Show romaji on the front</b><p>Turn off once you want to test the reading as well as the meaning.</p></div><input type="checkbox" id="rom" ${s.rom?"checked":""}></div>
-  ${canSpeak?`<div class="row"><div><b>Play audio when the answer shows</b><p>Plays the recording for each word.</p></div><input type="checkbox" id="auto" ${s.auto?"checked":""}></div>`:""}</div>
+  ${canSpeak?`<div class="row"><div><b>Voice</b><p>iPhone voice sounds natural and reads the example sentences. For the best one, download a Japanese "Enhanced" or Siri voice: Settings, Accessibility, Spoken Content, Voices, Japanese.</p></div><select id="voice"><option value="device" ${s.voice!=="rec"?"selected":""}>iPhone voice</option><option value="rec" ${s.voice==="rec"?"selected":""}>Recorded</option></select></div>
+  <div class="row"><div><b>Play audio when the answer shows</b><p>Says the word when you reveal the card.</p></div><input type="checkbox" id="auto" ${s.auto?"checked":""}></div>`:""}</div>
   <div class="panel"><h2>How the timing works</h2><p style="margin:0;color:var(--muted)">New cards repeat after 1 and 10 minutes, then move to 1 day. Good multiplies the gap by about 2.5 each time. Easy on a new card skips straight to 4 days. Again brings a card back in 10 minutes and makes it come up more often from then on.</p></div>
   <div class="panel"><h2>Backup</h2><div class="row"><div><p>Progress lives on this device. Export a file to keep a copy or move to another device.</p></div><button class="ghost" data-a="export">Export</button><label class="ghost" style="cursor:pointer">Import<input type="file" id="imp" accept="application/json,.json" hidden></label></div></div>
   <div class="panel"><h2>Reset</h2><div class="row"><div><p>${resetArm?"This erases every interval and your history. Press again to confirm.":"Start the whole deck again from zero."}</p></div><button class="ghost danger" data-a="reset">${resetArm?"Erase all progress":"Reset progress"}</button></div></div>`;
@@ -304,6 +326,7 @@ $("#main").addEventListener("click",e=>{
   const a=b.dataset.a;
   if(a==="show")reveal();
   else if(a==="say")speak(card(cur)[1]);
+  else if(a==="sayex"){const x=exOf(cur);if(x)sayJa(x[0],null)}
   else if(a==="more"){S.meta.day.extra+=20;dirty.add("meta");save();render()}
   else if(a==="export"){const u=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:"application/json"})),l=document.createElement("a");l.href=u;l.download="kotoba-deck-backup.json";document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
   else if(a==="reset"){
@@ -317,6 +340,7 @@ $("#main").addEventListener("input",e=>{
   if(t.id==="nd")s.nd=Math.max(0,Math.min(500,parseInt(t.value)||0));
   else if(t.id==="rom")s.rom=t.checked;
   else if(t.id==="auto")s.auto=t.checked;
+  else if(t.id==="voice"){s.voice=t.value;sayJa("こんにちは",null)}
   else return;
   dirty.add("meta");save();
 });
