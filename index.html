@@ -132,7 +132,7 @@ function romaji(k){
 }
 
 /* ---------- state ---------- */
-const S={cards:{},meta:{v:1,set:{nd:30,rom:true,auto:false,voice:"device"},day:{d:0,nw:0,extra:0,rev:0},hist:{},custom:[]}};
+const S={cards:{},meta:{v:1,set:{nd:30,rom:true,auto:false,voice:"rec",vr:1},day:{d:0,nw:0,extra:0,rev:0},hist:{},custom:[]}};
 let IDS=[],tab="study",cur=null,shown=false,undo=null,base=null,syncMsg="",q="",resetArm=false;
 const card=i=>i<CUSTOM?DECK[i]:[...S.meta.custom[i-CUSTOM],0];
 function rebuild(){IDS=DECK.map((_,i)=>i).concat(S.meta.custom.map((_,i)=>CUSTOM+i))}
@@ -160,7 +160,9 @@ async function flush(){
   busy=false;
 }
 function setSync(m){syncMsg=m;$("#sync").textContent=m}
-function adopt(o){if(!o)return false;if(o.meta){Object.assign(S.meta,o.meta);S.meta.set=Object.assign({nd:30,rom:true,auto:false,voice:"device"},o.meta.set)}if(o.cards)S.cards=o.cards;return true}
+function adopt(o){if(!o)return false;if(o.meta){Object.assign(S.meta,o.meta);S.meta.set=Object.assign({nd:30,rom:true,auto:false,voice:"rec"},o.meta.set);
+  /* The recordings became a natural voice (ElevenLabs), so everyone moves to Recorded once. */
+  if(S.meta.set.vr!==1){S.meta.set.voice="rec";S.meta.set.vr=1}}if(o.cards)S.cards=o.cards;return true}
 async function load(){
   let local=null;try{local=JSON.parse(localStorage.getItem("kotoba")||"null")}catch(e){}
   let ok=false;
@@ -234,26 +236,33 @@ function doUndo(){
   S.meta.day=day;S.meta.hist[day.d]=h;undo=null;cur=i;shown=false;mark(i);render();
 }
 const player=new Audio();player.preload="auto";
-/* Voice: the phone's own Japanese voice (Siri/Kyoko quality) by default; the recorded
-   clip is the fallback when the phone voice does not start, and the "Recorded" setting. */
+/* Voice: "Recorded" (default) plays a/<i>.mp3 for words and s/<i>.mp3 for example
+   sentences. Sentences below SENT_REC have a recording; the rest, and custom cards, use
+   the phone's Japanese voice until they get one. "iPhone voice" speaks everything, with
+   the recording as the fallback when the phone voice does not start. */
+const SENT_REC=771;
+function hasClip(i,dir){return i!=null&&i<CUSTOM&&(dir==="a"||i<SENT_REC)}
 let jaVoice=null;
 function pickVoice(){try{const v=speechSynthesis.getVoices().filter(x=>/^ja/i.test(x.lang));
   const score=x=>(/siri/i.test(x.name)?40:0)+(/premium|enhanced|拡張|プレミアム/i.test(x.name)?30:0)+(/o-ren|otoya|hattori|kyoko/i.test(x.name)?10:0)+(x.localService?2:0);
   v.sort((a,b)=>score(b)-score(a));jaVoice=v[0]||null}catch(e){}}
 try{pickVoice();speechSynthesis.addEventListener("voiceschanged",pickVoice)}catch(e){}
-function playClip(i){if(i==null||i>=CUSTOM)return false;player.pause();player.src="a/"+i+".mp3";player.load();
-  const p=player.play();if(p&&p.catch)p.catch(e=>{if(e&&e.name==="NotAllowedError")setSync("Tap Play audio to hear the word.")});return true}
-function sayJa(text,clipIdx){
-  const useDevice=S.meta.set.voice!=="rec"&&"speechSynthesis"in window;
-  if(!useDevice){if(!playClip(clipIdx))setSync("No recording for this one. Switch Voice to iPhone voice in Settings.");return}
+function playClip(i,dir){dir=dir||"a";if(!hasClip(i,dir))return false;
+  if("speechSynthesis"in window&&(speechSynthesis.speaking||speechSynthesis.pending))speechSynthesis.cancel();
+  player.pause();player.src=dir+"/"+i+".mp3";player.load();
+  const p=player.play();if(p&&p.catch)p.catch(e=>{if(e&&e.name==="NotAllowedError")setSync("Tap Play to hear it.")});return true}
+function sayJa(text,clipIdx,dir){
+  dir=dir||"a";
+  if(S.meta.set.voice==="rec"&&playClip(clipIdx,dir))return;
+  if(!("speechSynthesis"in window)){if(!playClip(clipIdx,dir))setSync("No recording for this one yet.");return}
   try{
     pickVoice();player.pause();
     if(speechSynthesis.speaking||speechSynthesis.pending)speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);u.lang="ja-JP";u.rate=.9;if(jaVoice)u.voice=jaVoice;
     let started=false;u.onstart=()=>{started=true};
     speechSynthesis.speak(u);
-    setTimeout(()=>{if(!started&&!speechSynthesis.speaking){if(!playClip(clipIdx))setSync("The phone voice did not start. Check the silent switch.")}},1500);
-  }catch(e){playClip(clipIdx)}
+    setTimeout(()=>{if(!started&&!speechSynthesis.speaking){if(!playClip(clipIdx,dir))setSync("The phone voice did not start. Check the silent switch.")}},1500);
+  }catch(e){playClip(clipIdx,dir)}
 }
 function speak(t){if(cur==null)return;sayJa(card(cur)[1]||card(cur)[0],cur)}
 let EX=null;fetch("examples.json").then(r=>r.json()).then(d=>{EX=d;if(shown)render()}).catch(()=>{});
@@ -303,7 +312,7 @@ function vSettings(){
   return`<div class="panel"><h2>Study</h2>
   <div class="row"><div><b>New cards per day</b><p>Raise it to move fast while the words are easy. Reviews are never capped.</p></div><input type="number" id="nd" min="0" max="500" value="${s.nd}"></div>
   <div class="row"><div><b>Show romaji on the front</b><p>Turn off once you want to test the reading as well as the meaning.</p></div><input type="checkbox" id="rom" ${s.rom?"checked":""}></div>
-  ${canSpeak?`<div class="row"><div><b>Voice</b><p>iPhone voice sounds natural and reads the example sentences. For the best one, download a Japanese "Enhanced" or Siri voice: Settings, Accessibility, Spoken Content, Voices, Japanese.</p></div><select id="voice"><option value="device" ${s.voice!=="rec"?"selected":""}>iPhone voice</option><option value="rec" ${s.voice==="rec"?"selected":""}>Recorded</option></select></div>
+  ${canSpeak?`<div class="row"><div><b>Voice</b><p>Recorded is a natural Japanese voice for every word. Sentences without a recording yet use the iPhone voice.</p></div><select id="voice"><option value="rec" ${s.voice==="rec"?"selected":""}>Recorded</option><option value="device" ${s.voice!=="rec"?"selected":""}>iPhone voice</option></select></div>
   <div class="row"><div><b>Play audio when the answer shows</b><p>Says the word when you reveal the card.</p></div><input type="checkbox" id="auto" ${s.auto?"checked":""}></div>`:""}</div>
   <div class="panel"><h2>How the timing works</h2><p style="margin:0;color:var(--muted)">New cards repeat after 1 and 10 minutes, then move to 1 day. Good multiplies the gap by about 2.5 each time. Easy on a new card skips straight to 4 days. Again brings a card back in 10 minutes and makes it come up more often from then on.</p></div>
   <div class="panel"><h2>Backup</h2><div class="row"><div><p>Progress lives on this device. Export a file to keep a copy or move to another device.</p></div><button class="ghost" data-a="export">Export</button><label class="ghost" style="cursor:pointer">Import<input type="file" id="imp" accept="application/json,.json" hidden></label></div></div>
@@ -326,7 +335,7 @@ $("#main").addEventListener("click",e=>{
   const a=b.dataset.a;
   if(a==="show")reveal();
   else if(a==="say")speak(card(cur)[1]);
-  else if(a==="sayex"){const x=exOf(cur);if(x)sayJa(x[0],null)}
+  else if(a==="sayex"){const x=exOf(cur);if(x)sayJa(x[0],cur,"s")}
   else if(a==="more"){S.meta.day.extra+=20;dirty.add("meta");save();render()}
   else if(a==="export"){const u=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:"application/json"})),l=document.createElement("a");l.href=u;l.download="kotoba-deck-backup.json";document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
   else if(a==="reset"){
@@ -340,7 +349,7 @@ $("#main").addEventListener("input",e=>{
   if(t.id==="nd")s.nd=Math.max(0,Math.min(500,parseInt(t.value)||0));
   else if(t.id==="rom")s.rom=t.checked;
   else if(t.id==="auto")s.auto=t.checked;
-  else if(t.id==="voice"){s.voice=t.value;sayJa("こんにちは",null)}
+  else if(t.id==="voice"){s.voice=t.value;sayJa("こんにちは",t.value==="rec"?0:null)}
   else return;
   dirty.add("meta");save();
 });
