@@ -240,7 +240,7 @@ const player=new Audio();player.preload="auto";
    sentences. Sentences below SENT_REC have a recording; the rest, and custom cards, use
    the phone's Japanese voice until they get one. "iPhone voice" speaks everything, with
    the recording as the fallback when the phone voice does not start. */
-const SENT_REC=771;
+const SENT_REC=772;
 function hasClip(i,dir){return i!=null&&i<CUSTOM&&(dir==="a"||i<SENT_REC)}
 let jaVoice=null;
 function pickVoice(){try{const v=speechSynthesis.getVoices().filter(x=>/^ja/i.test(x.lang));
