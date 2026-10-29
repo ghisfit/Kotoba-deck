@@ -207,6 +207,7 @@ function label(n,now){
   if(n[0]!==2){const m=Math.round((n[1]-now)/MIN);return m<1?"<1 min":m+" min"}
   const d=n[2];return d<30?d+(d===1?" day":" days"):d<365?(d/30).toFixed(1)+" mo":(d/365).toFixed(1)+" yr";
 }
+let aheadOk=false;
 function queue(){
   rollDay();const now=Date.now(),today=dayNum(now),L=[],Ls=[],R=[];let firstNew=-1,nNew=0;
   for(const i of IDS){const c=S.cards[i];
@@ -218,8 +219,9 @@ function queue(){
   let pick=null;
   if(L.length)pick=early(L);
   else if(R.length+newLeft)pick=Math.random()*(R.length+newLeft)<newLeft?firstNew:R[Math.floor(Math.random()*R.length)];
-  else if(Ls.length)pick=early(Ls);
-  return{pick,newLeft,learn:L.length+Ls.length,rev:R.length,nNew};
+  const wait=Ls.length?early(Ls):null;
+  if(pick==null&&wait!=null&&aheadOk)pick=wait;
+  return{pick,newLeft,learn:L.length+Ls.length,rev:R.length,nNew,wait};
 }
 function answer(g){
   if(cur==null)return;const i=cur,c=S.cards[i],now=Date.now(),d=S.meta.day,t=dayNum(now);
@@ -274,6 +276,11 @@ const canSpeak=true;
 function vStudy(){
   const Q=queue();if(cur==null)cur=Q.pick;
   const counts=`<div class="counts"><span class="c-new">${Q.newLeft}<small>new</small></span><span class="c-learn">${Q.learn}<small>learning</small></span><span class="c-rev">${Q.rev}<small>to review</small></span></div>`;
+  if(cur==null&&Q.wait!=null){
+    const mins=Math.max(1,Math.ceil((S.cards[Q.wait][1]-Date.now())/MIN));
+    clearTimeout(window.__wake);window.__wake=setTimeout(()=>{if(tab==="study"&&cur==null)render()},Math.max(1000,S.cards[Q.wait][1]-Date.now()+500));
+    return counts+`<div class="card"><div class="done">Break time</div><p class="romaji">Your next card comes back in ${mins} min, so you see it at the right moment instead of straight away.</p></div><button class="ghost" data-a="ahead" style="width:100%">Study it now anyway</button>${Q.nNew&&!Q.newLeft?`<button class="primary" data-a="more">Learn 20 more new cards</button>`:""}`;
+  }
   if(cur==null){
     const more=Q.nNew?`<button class="primary" data-a="more">Learn 20 more new cards</button>`:"";
     return counts+`<div class="card"><div class="done">Done for today</div><p class="romaji">Otsukaresama. Every card that was due has been reviewed.</p></div>${more}`;
@@ -335,6 +342,7 @@ $("#main").addEventListener("click",e=>{
   const a=b.dataset.a;
   if(a==="show")reveal();
   else if(a==="say")speak(card(cur)[1]);
+  else if(a==="ahead"){aheadOk=true;render();aheadOk=false}
   else if(a==="sayex"){const x=exOf(cur);if(x)sayJa(x[0],cur,"s")}
   else if(a==="more"){S.meta.day.extra+=20;dirty.add("meta");save();render()}
   else if(a==="export"){const u=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:"application/json"})),l=document.createElement("a");l.href=u;l.download="kotoba-deck-backup.json";document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
