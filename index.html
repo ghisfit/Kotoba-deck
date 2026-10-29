@@ -243,7 +243,8 @@ const player=new Audio();player.preload="auto";
    the phone's Japanese voice until they get one. "iPhone voice" speaks everything, with
    the recording as the fallback when the phone voice does not start. */
 const SENT_REC=772;
-function hasClip(i,dir){return i!=null&&i<CUSTOM&&(dir==="a"||i<SENT_REC)}
+const SENT_NOREC=new Set([0, 13, 21, 22, 24, 30, 35, 46, 49, 50, 68, 71, 74, 76, 77, 78, 80, 86, 91, 99, 113, 130, 133, 136, 142, 143, 144, 148, 152, 153, 159, 176, 178, 191, 194, 200, 201, 202, 215, 216, 219, 231, 244, 246, 254, 261, 262, 277, 278, 293, 298, 299, 317, 327, 328, 330, 340, 346, 351, 372, 386, 389, 390, 396, 410, 414, 420, 423, 430, 433, 455, 459, 475, 476, 484, 499, 515, 539, 540, 544, 556, 559, 560, 563, 573, 591, 594, 626, 647, 649, 650, 663, 677, 686, 687, 689, 690, 696, 700, 704, 712, 735, 737, 762]); // sentences rewritten after recording
+function hasClip(i,dir){return i!=null&&i<CUSTOM&&(dir==="a"||(i<SENT_REC&&!SENT_NOREC.has(i)))}
 let jaVoice=null;
 function pickVoice(){try{const v=speechSynthesis.getVoices().filter(x=>/^ja/i.test(x.lang));
   const score=x=>(/siri/i.test(x.name)?40:0)+(/premium|enhanced|拡張|プレミアム/i.test(x.name)?30:0)+(/o-ren|otoya|hattori|kyoko/i.test(x.name)?10:0)+(x.localService?2:0);
